@@ -1,0 +1,59 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: syl-wordcount
+    main: .
+    binary: syl-wordcount
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X syl-wordcount/cmd.Version={{.Version}} -X syl-wordcount/cmd.Commit={{.ShortCommit}} -X syl-wordcount/cmd.BuildTime={{.Date}}
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  github:
+    owner: hooziwang
+    name: syl-wordcount
+
+brews:
+  - repository:
+      owner: hooziwang
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/hooziwang/syl-wordcount"
+    description: "面向 AI 的文本统计与规则校验 CLI"
+    license: "MIT"
+    test: |
+      system "#{bin}/syl-wordcount", "--version"
+
+scoops:
+  - repository:
+      owner: hooziwang
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}"
+    directory: bucket
+    homepage: "https://github.com/hooziwang/syl-wordcount"
+    description: "面向 AI 的文本统计与规则校验 CLI"
+    license: "MIT"

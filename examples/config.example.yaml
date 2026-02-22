@@ -1,0 +1,30 @@
+rules:
+  min_chars: 10
+  max_chars: 5000
+  min_lines: 1
+  max_lines: 200
+  max_line_width: 100
+  avg_line_width: 80
+  max_file_size: "2MB"
+
+  no_trailing_spaces: true
+  no_tabs: true
+  no_fullwidth_space: true
+  max_consecutive_blank_lines: 2
+
+  allowed_extensions:
+    - ".md"
+    - ".txt"
+  ignore_patterns:
+    - "**/.cache/**"
+    - "**/*.log"
+
+  forbidden_patterns:
+    - pattern: "TODO"
+      case_sensitive: true
+    - pattern: "password\\s*=\\s*.+"
+      case_sensitive: false
+
+  required_patterns:
+    - pattern: "版权"
+      case_sensitive: true
