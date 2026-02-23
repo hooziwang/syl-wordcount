@@ -15,13 +15,12 @@ import (
 )
 
 type commonFlags struct {
-	Config         string
-	Format         string
-	Jobs           int
-	FollowSymlinks bool
-	MaxFileSize    string
-	CheckAll       bool
-	ShowVersion    bool
+	Config      string
+	Format      string
+	Jobs        int
+	MaxFileSize string
+	CheckAll    bool
+	ShowVersion bool
 }
 
 func Execute() int {
@@ -46,6 +45,7 @@ func NewRootCmd(stdout, _ io.Writer) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "syl-wordcount [paths...]",
 		Short:         "统计文本文件字数/行数/最大行宽，并支持规则校验",
+		Long:          "统计文本文件字数/行数/最大行宽，并支持规则校验。\n\n内部固定逻辑：软链接默认不跟随（不可配置）；check 默认仅输出 violation/error（可用 --all 输出 pass）。",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -78,6 +78,7 @@ func NewRootCmd(stdout, _ io.Writer) *cobra.Command {
 	checkCmd := &cobra.Command{
 		Use:           "check [paths...]",
 		Short:         "按规则检查文本质量并输出违规定位",
+		Long:          "按规则检查文本质量并输出违规定位。\n\n规则来源：--config 或 SYL_WC_* 环境变量；默认仅输出 violation/error（可用 --all 输出 pass）。",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -106,7 +107,6 @@ func bindCommon(cmd *cobra.Command, flags *commonFlags) {
 	cmd.PersistentFlags().StringVar(&flags.Config, "config", "", "YAML 规则配置文件路径（check 模式可选，未传则尝试读取环境变量规则）")
 	cmd.PersistentFlags().StringVar(&flags.Format, "format", "ndjson", "输出格式：ndjson/json")
 	cmd.PersistentFlags().IntVar(&flags.Jobs, "jobs", app.DefaultJobs(), "并发任务数（默认 min(8, CPU核数)）")
-	cmd.PersistentFlags().BoolVar(&flags.FollowSymlinks, "follow-symlinks", false, "是否跟随软链接")
 	cmd.PersistentFlags().StringVar(&flags.MaxFileSize, "max-file-size", "10MB", "单文件最大处理大小，超出则跳过（如 10MB）")
 	cmd.PersistentFlags().BoolVarP(&flags.ShowVersion, "version", "v", false, "显示版本信息")
 }
@@ -137,7 +137,6 @@ func runMode(stdout io.Writer, flags *commonFlags, mode app.Mode, args []string)
 		ConfigPath:       flags.Config,
 		Format:           flags.Format,
 		Jobs:             flags.Jobs,
-		FollowSymlinks:   flags.FollowSymlinks,
 		MaxFileSizeBytes: maxBytes,
 		Version:          Version,
 		Args:             os.Args[1:],

@@ -203,3 +203,17 @@ func TestNormalizeArgsUsesInternalStats(t *testing.T) {
 		t.Fatalf("unexpected normalize result: %#v", got)
 	}
 }
+
+func TestFollowSymlinksFlagRemoved(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	root := NewRootCmd(stdout, stderr)
+	root.SetArgs([]string{"--follow-symlinks", "."})
+	err := root.Execute()
+	if err == nil {
+		t.Fatalf("expected unknown flag error")
+	}
+	if !strings.Contains(err.Error(), "unknown flag: --follow-symlinks") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

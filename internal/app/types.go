@@ -16,7 +16,6 @@ type Options struct {
 	ConfigPath       string
 	Format           string
 	Jobs             int
-	FollowSymlinks   bool
 	MaxFileSizeBytes int64
 	Version          string
 	Args             []string

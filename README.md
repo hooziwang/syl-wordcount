@@ -119,31 +119,25 @@ syl-wordcount ./docs --jobs 8
 syl-wordcount ./docs --max-file-size 5MB
 ```
 
-### 示例 8：跟随软链接
-
-```bash
-syl-wordcount ./docs --follow-symlinks
-```
-
-### 示例 9：执行规则校验
+### 示例 8：执行规则校验
 
 ```bash
 syl-wordcount check ./docs --config ./examples/config.example.yaml
 ```
 
-### 示例 10：多路径校验
+### 示例 9：多路径校验
 
 ```bash
 syl-wordcount check ./docs ./notes ./README.md --config ./rules.yaml
 ```
 
-### 示例 10.1：check 全量输出（包含 pass）
+### 示例 9.1：check 全量输出（包含 pass）
 
 ```bash
 syl-wordcount check ./docs --config ./rules.yaml --all
 ```
 
-### 示例 11：输入路径不存在（看 error 事件 + 退出码）
+### 示例 10：输入路径不存在（看 error 事件 + 退出码）
 
 ```bash
 syl-wordcount /no/such/path > /tmp/swc-missing.ndjson; echo $?
@@ -151,14 +145,14 @@ rg '"type":"error"' /tmp/swc-missing.ndjson
 tail -n 1 /tmp/swc-missing.ndjson
 ```
 
-### 示例 12：二进制文件会被跳过
+### 示例 11：二进制文件会被跳过
 
 ```bash
 syl-wordcount ./some-image.png > /tmp/swc-binary.ndjson; echo $?
 rg 'skipped_binary_file' /tmp/swc-binary.ndjson
 ```
 
-### 示例 13：超大文件会被跳过
+### 示例 12：超大文件会被跳过
 
 ```bash
 syl-wordcount ./docs --max-file-size 1KB > /tmp/swc-large.ndjson; echo $?
@@ -169,8 +163,8 @@ rg 'skipped_large_file' /tmp/swc-large.ndjson
 
 - `--format ndjson|json`：输出格式，默认 `ndjson`
 - `--jobs N`：并发任务数，默认 `min(8, CPU核数)`
-- `--follow-symlinks`：是否跟随软链接（默认不跟随）
 - `--max-file-size 10MB`：单文件处理上限（超限会跳过并输出 error 事件）
+- 软链接处理：内部固定为不跟随（无 `--follow-symlinks` 开关）
 - 统计模式默认附带 `hash`（sha256），无需额外参数
 - `--config /path/rules.yaml`：规则配置文件（`check` 可选；不传时尝试读取 `SYL_WC_*`）
 - `--all`：仅 `check` 模式有效，输出全量事件（包含 `pass`）
@@ -441,7 +435,7 @@ jobs:
       - run: syl-wordcount check . --config ./rules.yaml > syl-wordcount.ndjson
 ```
 
-## 设计口径（已固定）
+## 内部固定逻辑
 
 - 默认递归扫描目录
 - 路径统一输出绝对路径
@@ -452,5 +446,6 @@ jobs:
 - 最大行宽按显示宽度（CJK 宽字符）
 - 列号 `column` 为 `rune` 列号（从 1 开始）
 - tab 宽度按 4，按 tab stop 计算
+- 软链接固定不跟随（不可配置）
 - 默认启用 `.gitignore`，并内置忽略目录：`.git`、`.svn`、`node_modules`、`vendor`、`dist`、`build`
 - check 模式必须有规则来源：`--config` 或 `SYL_WC_*` 环境变量（两者都没有会直接报错）

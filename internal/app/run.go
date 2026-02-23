@@ -70,7 +70,7 @@ func Run(opts Options) (Result, error) {
 		"args":             opts.Args,
 		"config_path":      configPathForMeta,
 		"output_format":    opts.Format,
-		"follow_symlinks":  opts.FollowSymlinks,
+		"follow_symlinks":  false,
 		"max_file_size":    opts.MaxFileSizeBytes,
 		"exit_code_policy": map[string]int{"ok": 0, "violation": 1, "arg_error": 2, "input_error": 3, "config_error": 4, "internal_error": 5},
 	}
@@ -79,7 +79,7 @@ func Run(opts Options) (Result, error) {
 	scanRes := scan.Collect(scan.Options{
 		Paths:          opts.Paths,
 		CWD:            opts.CWD,
-		FollowSymlinks: opts.FollowSymlinks,
+		FollowSymlinks: false,
 		IgnorePatterns: cfg.Rules.IgnorePatterns,
 	})
 	for _, se := range scanRes.Errors {
