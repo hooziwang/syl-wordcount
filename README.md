@@ -8,14 +8,42 @@
 
 ### macOS (Homebrew)
 
+安装（首次/已 tap 过都可用）：
+
 ```bash
-brew tap hooziwang/tap && brew install syl-wordcount
+brew update && brew install hooziwang/tap/syl-wordcount
+```
+
+升级：
+
+```bash
+brew update && brew upgrade hooziwang/tap/syl-wordcount
+```
+
+如果提示 `No available formula`（本地 tap 索引过期）：
+
+```bash
+brew untap hooziwang/tap && brew install hooziwang/tap/syl-wordcount
 ```
 
 ### Windows (Scoop)
 
+安装：
+
 ```powershell
-scoop bucket add hooziwang https://github.com/hooziwang/scoop-bucket.git; scoop install syl-wordcount
+scoop update; scoop bucket add hooziwang https://github.com/hooziwang/scoop-bucket.git; scoop install syl-wordcount
+```
+
+升级：
+
+```powershell
+scoop update; scoop update syl-wordcount
+```
+
+如果提示找不到应用（bucket 索引过期）：
+
+```powershell
+scoop bucket rm hooziwang; scoop bucket add hooziwang https://github.com/hooziwang/scoop-bucket.git; scoop update; scoop install syl-wordcount
 ```
 
 ### 本地源码构建
