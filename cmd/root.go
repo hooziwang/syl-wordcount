@@ -50,7 +50,7 @@ func NewRootCmd(stdout, _ io.Writer) *cobra.Command {
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if flags.ShowVersion {
-				fmt.Fprintln(stdout, versionText())
+				printVersion(stdout)
 				return nil
 			}
 			_ = cmd.Help()
@@ -78,7 +78,7 @@ func NewRootCmd(stdout, _ io.Writer) *cobra.Command {
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if flags.ShowVersion {
-				fmt.Fprintln(stdout, versionText())
+				printVersion(stdout)
 				return nil
 			}
 			return runMode(stdout, flags, app.ModeCheck, args)
@@ -90,7 +90,7 @@ func NewRootCmd(stdout, _ io.Writer) *cobra.Command {
 		Use:   "version",
 		Short: "显示版本信息",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Fprintln(stdout, versionText())
+			printVersion(stdout)
 		},
 	}
 	root.AddCommand(versionCmd)

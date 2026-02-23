@@ -5,9 +5,16 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
+
+var ansiRegexp = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func stripANSI(s string) string {
+	return ansiRegexp.ReplaceAllString(s, "")
+}
 
 func parseNDJSON(t *testing.T, s string) []map[string]any {
 	t.Helper()
@@ -34,8 +41,12 @@ func TestVersion(t *testing.T) {
 	if err := root.Execute(); err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
-	if !strings.Contains(stdout.String(), "syl-wordcount 版本：") {
-		t.Fatalf("unexpected output: %q", stdout.String())
+	got := stripANSI(stdout.String())
+	if !strings.Contains(got, "syl-wordcount 版本：") {
+		t.Fatalf("unexpected output: %q", got)
+	}
+	if !strings.Contains(got, "DADDYLOVESYL") {
+		t.Fatalf("missing DADDYLOVESYL banner: %q", got)
 	}
 }
 

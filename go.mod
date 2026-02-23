@@ -4,6 +4,7 @@ go 1.23.0
 
 require (
 	github.com/bmatcuk/doublestar/v4 v4.9.1
+	github.com/hooziwang/daddylovesyl v0.1.0
 	github.com/mattn/go-runewidth v0.0.16
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/text v0.23.0
