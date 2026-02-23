@@ -201,10 +201,17 @@ rg 'skipped_large_file' /tmp/swc-large.ndjson
 ### 错误事件示例
 
 ```json
-{"type":"error","code":"input_path_not_found","category":"input","path":"/abs/missing","detail":"路径不存在"}
-{"type":"error","code":"skipped_binary_file","category":"input","path":"/abs/a.png","detail":"识别为二进制文件，已跳过"}
-{"type":"error","code":"decode_failed","category":"input","path":"/abs/a.txt","detail":"无法识别文本编码（支持 utf-8/gbk/gb18030）"}
+{"type":"error","code":"input_path_not_found","category":"input","path":"/abs/missing","detail":"路径不存在","next_action":"确认路径存在且拼写正确，再重试","fix_example":"syl-wordcount /path/to/input_dir","doc_key":"input.path_not_found","recoverable":true}
+{"type":"error","code":"skipped_binary_file","category":"input","path":"/abs/a.png","detail":"识别为二进制文件，已跳过","next_action":"这是二进制文件，建议用规则只保留文本扩展名","fix_example":"SYL_WC_ALLOWED_EXTENSIONS=.md,.txt syl-wordcount check /path/to/input_dir","doc_key":"input.binary_skipped","recoverable":true}
+{"type":"error","code":"decode_failed","category":"input","path":"/abs/a.txt","detail":"无法识别文本编码（支持 utf-8/gbk/gb18030）","next_action":"先把文件转成 utf-8/gbk/gb18030 之一，再执行","fix_example":"iconv -f gbk -t utf-8 input.txt -o output.txt && syl-wordcount output.txt","doc_key":"input.decode_failed","recoverable":true}
 ```
+
+错误事件字段约定：
+
+- `next_action`：下一步建议动作（给 AI 直接执行/生成修复命令）。
+- `fix_example`：可参考的一行命令。
+- `doc_key`：稳定键名，便于规则引擎做映射。
+- `recoverable`：是否可通过修正输入/配置后重试。
 
 ## 规则配置详解
 

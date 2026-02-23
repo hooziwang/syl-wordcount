@@ -34,8 +34,15 @@ func Execute() int {
 			}
 			return ee.Code
 		}
+		code := ExitInternal
+		errCode := "runtime_failed"
+		if strings.Contains(err.Error(), "unknown command") || strings.Contains(err.Error(), "unknown flag") {
+			code = ExitArg
+			errCode = "unknown_command"
+		}
+		writeCLIError(os.Stdout, detectFormatFromArgs(os.Args[1:]), "unknown", os.Args[1:], errCode, "arg", "", err.Error(), code)
 		fmt.Fprintln(os.Stderr, err.Error())
-		return ExitInternal
+		return code
 	}
 	return ExitOK
 }
@@ -55,7 +62,7 @@ func NewRootCmd(stdout, _ io.Writer) *cobra.Command {
 			}
 			if len(args) == 0 {
 				_ = cmd.Help()
-				return &ExitError{Code: ExitArg, Msg: "还没传输入路径，至少要给一个文件或目录"}
+				return &ExitError{Code: ExitArg, Msg: "还没传输入路径，至少要给一个文件或目录。示例：syl-wordcount /path/to/input_dir"}
 			}
 			return runMode(stdout, flags, app.ModeStats, args)
 		},
@@ -113,22 +120,30 @@ func bindCommon(cmd *cobra.Command, flags *commonFlags) {
 
 func runMode(stdout io.Writer, flags *commonFlags, mode app.Mode, args []string) error {
 	if len(args) == 0 {
-		return &ExitError{Code: ExitArg, Msg: "还没传输入路径，至少要给一个文件或目录"}
+		msg := "还没传输入路径，至少要给一个文件或目录。示例：syl-wordcount /path/to/input_dir"
+		writeCLIError(stdout, flags.Format, string(mode), args, "arg_missing_paths", "arg", "", msg, ExitArg)
+		return &ExitError{Code: ExitArg, Msg: msg}
 	}
 	if err := scan.ValidateFormat(flags.Format); err != nil {
+		writeCLIError(stdout, flags.Format, string(mode), args, "invalid_output_format", "arg", "", err.Error(), ExitArg)
 		return &ExitError{Code: ExitArg, Msg: err.Error()}
 	}
 	maxBytes, err := parseSize(flags.MaxFileSize)
 	if err != nil {
+		writeCLIError(stdout, flags.Format, string(mode), args, "invalid_max_file_size", "arg", "", err.Error(), ExitArg)
 		return &ExitError{Code: ExitArg, Msg: err.Error()}
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
-		return &ExitError{Code: ExitInternal, Msg: "读取当前目录失败"}
+		msg := "读取当前目录失败"
+		writeCLIError(stdout, flags.Format, string(mode), args, "cwd_failed", "internal", "", msg, ExitInternal)
+		return &ExitError{Code: ExitInternal, Msg: msg}
 	}
 	paths := app.NormalizePaths(args, cwd)
 	if len(paths) == 0 {
-		return &ExitError{Code: ExitArg, Msg: "输入路径为空或无效"}
+		msg := "输入路径为空或无效"
+		writeCLIError(stdout, flags.Format, string(mode), args, "invalid_input_paths", "arg", "", msg, ExitArg)
+		return &ExitError{Code: ExitArg, Msg: msg}
 	}
 	res, err := app.Run(app.Options{
 		Mode:             mode,
@@ -144,16 +159,24 @@ func runMode(stdout io.Writer, flags *commonFlags, mode app.Mode, args []string)
 	if err != nil {
 		switch err.(type) {
 		case *app.ArgErr:
+			writeCLIError(stdout, flags.Format, string(mode), args, "arg_invalid", "arg", "", err.Error(), ExitArg)
 			return &ExitError{Code: ExitArg, Msg: err.Error()}
 		case *app.ConfigErr:
+			code := "check_config_invalid"
+			if strings.Contains(err.Error(), "check 模式需要规则") {
+				code = "check_rules_missing"
+			}
+			writeCLIError(stdout, flags.Format, string(mode), args, code, "config", "", err.Error(), ExitConfig)
 			return &ExitError{Code: ExitConfig, Msg: err.Error()}
 		default:
+			writeCLIError(stdout, flags.Format, string(mode), args, "runtime_failed", "internal", "", err.Error(), ExitInternal)
 			return &ExitError{Code: ExitInternal, Msg: err.Error()}
 		}
 	}
 	events := eventsForOutput(mode, flags.CheckAll, res.Events)
 	if werr := output.Write(stdout, flags.Format, events); werr != nil {
-		return &ExitError{Code: ExitInternal, Msg: fmt.Sprintf("输出结果失败：%v", werr)}
+		msg := fmt.Sprintf("输出结果失败：%v", werr)
+		return &ExitError{Code: ExitInternal, Msg: msg}
 	}
 	code := 0
 	if res.HasInternalErr {

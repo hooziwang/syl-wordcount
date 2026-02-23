@@ -83,13 +83,7 @@ func Run(opts Options) (Result, error) {
 		IgnorePatterns: cfg.Rules.IgnorePatterns,
 	})
 	for _, se := range scanRes.Errors {
-		res.Events = append(res.Events, map[string]any{
-			"type":     "error",
-			"code":     se.Code,
-			"category": "input",
-			"path":     se.Path,
-			"detail":   se.Detail,
-		})
+		res.Events = append(res.Events, buildErrorEvent("input", se.Code, se.Path, se.Detail))
 		res.HasInputErr = true
 	}
 
@@ -192,13 +186,7 @@ func processFile(path string, opts Options, cfg RuntimeConfig) fileResult {
 	info, err := os.Stat(path)
 	if err != nil {
 		fr.HasInputErr = true
-		fr.Events = append(fr.Events, map[string]any{
-			"type":     "error",
-			"code":     "file_stat_failed",
-			"category": "input",
-			"path":     path,
-			"detail":   err.Error(),
-		})
+		fr.Events = append(fr.Events, buildErrorEvent("input", "file_stat_failed", path, err.Error()))
 		return fr
 	}
 	if info.IsDir() {
@@ -207,26 +195,14 @@ func processFile(path string, opts Options, cfg RuntimeConfig) fileResult {
 
 	if info.Size() > opts.MaxFileSizeBytes {
 		fr.Skipped = true
-		fr.Events = append(fr.Events, map[string]any{
-			"type":     "error",
-			"code":     "skipped_large_file",
-			"category": "input",
-			"path":     path,
-			"detail":   fmt.Sprintf("文件大小 %d 超过上限 %d", info.Size(), opts.MaxFileSizeBytes),
-		})
+		fr.Events = append(fr.Events, buildErrorEvent("input", "skipped_large_file", path, fmt.Sprintf("文件大小 %d 超过上限 %d", info.Size(), opts.MaxFileSizeBytes)))
 		return fr
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
 		fr.HasInputErr = true
-		fr.Events = append(fr.Events, map[string]any{
-			"type":     "error",
-			"code":     "file_read_failed",
-			"category": "input",
-			"path":     path,
-			"detail":   err.Error(),
-		})
+		fr.Events = append(fr.Events, buildErrorEvent("input", "file_read_failed", path, err.Error()))
 		return fr
 	}
 
@@ -236,26 +212,14 @@ func processFile(path string, opts Options, cfg RuntimeConfig) fileResult {
 	}
 	if textutil.DetectBinary(sample) {
 		fr.Skipped = true
-		fr.Events = append(fr.Events, map[string]any{
-			"type":     "error",
-			"code":     "skipped_binary_file",
-			"category": "input",
-			"path":     path,
-			"detail":   "识别为二进制文件，已跳过",
-		})
+		fr.Events = append(fr.Events, buildErrorEvent("input", "skipped_binary_file", path, "识别为二进制文件，已跳过"))
 		return fr
 	}
 
 	decoded, err := textutil.Decode(data)
 	if err != nil {
 		fr.Skipped = true
-		fr.Events = append(fr.Events, map[string]any{
-			"type":     "error",
-			"code":     "decode_failed",
-			"category": "input",
-			"path":     path,
-			"detail":   err.Error(),
-		})
+		fr.Events = append(fr.Events, buildErrorEvent("input", "decode_failed", path, err.Error()))
 		return fr
 	}
 	metrics := textutil.ComputeMetrics(decoded.Text)
@@ -283,13 +247,7 @@ func processFile(path string, opts Options, cfg RuntimeConfig) fileResult {
 	violations, verrs := EvaluateRules(fc, cfg.Rules)
 	for _, e := range verrs {
 		fr.HasInputErr = true
-		fr.Events = append(fr.Events, map[string]any{
-			"type":     "error",
-			"code":     "rule_eval_error",
-			"category": "config",
-			"path":     path,
-			"detail":   e.Error(),
-		})
+		fr.Events = append(fr.Events, buildErrorEvent("config", "rule_eval_error", path, e.Error()))
 	}
 
 	if len(violations) == 0 && len(verrs) == 0 {

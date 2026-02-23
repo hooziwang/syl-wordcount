@@ -136,6 +136,23 @@ func TestRunInputErrorsAndSkips(t *testing.T) {
 	if countEvent(res.Events, "error") == 0 {
 		t.Fatalf("expected error events")
 	}
+	for _, e := range res.Events {
+		if e["type"] != "error" {
+			continue
+		}
+		if _, ok := e["next_action"]; !ok {
+			t.Fatalf("error event missing next_action: %#v", e)
+		}
+		if _, ok := e["fix_example"]; !ok {
+			t.Fatalf("error event missing fix_example: %#v", e)
+		}
+		if _, ok := e["doc_key"]; !ok {
+			t.Fatalf("error event missing doc_key: %#v", e)
+		}
+		if _, ok := e["recoverable"]; !ok {
+			t.Fatalf("error event missing recoverable: %#v", e)
+		}
+	}
 	sm := findEvent(res.Events, "summary")
 	if sm == nil {
 		t.Fatalf("missing summary")

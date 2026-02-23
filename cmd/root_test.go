@@ -74,6 +74,29 @@ func TestCheckRequiresRules(t *testing.T) {
 	if !strings.Contains(ee.Error(), "check 模式需要规则") {
 		t.Fatalf("unexpected error message: %v", ee)
 	}
+	events := parseNDJSON(t, stdout.String())
+	if len(events) < 2 {
+		t.Fatalf("expected structured error output, got: %s", stdout.String())
+	}
+	var errEv map[string]any
+	for _, e := range events {
+		if e["type"] == "error" {
+			errEv = e
+			break
+		}
+	}
+	if errEv == nil {
+		t.Fatalf("missing error event: %s", stdout.String())
+	}
+	if errEv["code"] != "check_rules_missing" {
+		t.Fatalf("unexpected error code: %#v", errEv)
+	}
+	if _, ok := errEv["next_action"]; !ok {
+		t.Fatalf("missing next_action: %#v", errEv)
+	}
+	if _, ok := errEv["fix_example"]; !ok {
+		t.Fatalf("missing fix_example: %#v", errEv)
+	}
 }
 
 func TestStatsSubcommandRemoved(t *testing.T) {
@@ -249,5 +272,45 @@ func TestFollowSymlinksFlagRemoved(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "unknown flag: --follow-symlinks") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestInputErrorContainsAIHints(t *testing.T) {
+	tmp := t.TempDir()
+	missing := filepath.Join(tmp, "missing.txt")
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	root := NewRootCmd(stdout, stderr)
+	root.SetArgs(normalizeArgs([]string{missing}))
+	err := root.Execute()
+	if err == nil {
+		t.Fatalf("expected input error")
+	}
+	ee, ok := err.(*ExitError)
+	if !ok {
+		t.Fatalf("expected ExitError got %T", err)
+	}
+	if ee.Code != ExitInput {
+		t.Fatalf("unexpected code: %d", ee.Code)
+	}
+	events := parseNDJSON(t, stdout.String())
+	var errEv map[string]any
+	for _, e := range events {
+		if e["type"] == "error" {
+			errEv = e
+			break
+		}
+	}
+	if errEv == nil {
+		t.Fatalf("missing error event: %s", stdout.String())
+	}
+	if _, ok := errEv["next_action"]; !ok {
+		t.Fatalf("missing next_action: %#v", errEv)
+	}
+	if _, ok := errEv["fix_example"]; !ok {
+		t.Fatalf("missing fix_example: %#v", errEv)
+	}
+	if _, ok := errEv["recoverable"]; !ok {
+		t.Fatalf("missing recoverable: %#v", errEv)
 	}
 }
