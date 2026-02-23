@@ -45,15 +45,14 @@ func Run(opts Options) (Result, error) {
 	}
 
 	var cfg RuntimeConfig
+	configPathForMeta := opts.ConfigPath
 	if opts.Mode == ModeCheck {
-		if strings.TrimSpace(opts.ConfigPath) == "" {
-			return res, &ConfigErr{Msg: "check 模式必须传 --config"}
-		}
-		loaded, err := config.Load(opts.ConfigPath)
+		rules, source, err := config.LoadRulesForCheck(opts.ConfigPath)
 		if err != nil {
 			return res, &ConfigErr{Msg: err.Error()}
 		}
-		cfg = RuntimeConfig{Rules: loaded.Rules}
+		cfg = RuntimeConfig{Rules: rules}
+		configPathForMeta = source
 	} else if strings.TrimSpace(opts.ConfigPath) != "" {
 		loaded, err := config.Load(opts.ConfigPath)
 		if err != nil {
@@ -69,7 +68,7 @@ func Run(opts Options) (Result, error) {
 		"mode":             string(opts.Mode),
 		"cwd":              opts.CWD,
 		"args":             opts.Args,
-		"config_path":      opts.ConfigPath,
+		"config_path":      configPathForMeta,
 		"output_format":    opts.Format,
 		"follow_symlinks":  opts.FollowSymlinks,
 		"max_file_size":    opts.MaxFileSizeBytes,
@@ -97,7 +96,13 @@ func Run(opts Options) (Result, error) {
 	paths := scanRes.Files
 	res.Summary.TotalFiles = len(paths)
 	if len(paths) == 0 {
-		res.Events = append(res.Events, buildSummary(opts.Mode, res.Summary, 0))
+		for _, e := range res.Events {
+			t, _ := e["type"].(string)
+			if t == "error" {
+				res.Summary.Errors++
+			}
+		}
+		res.Events = append(res.Events, buildSummary(opts.Mode, res.Summary, decideExitCode(res)))
 		return res, nil
 	}
 
@@ -262,14 +267,12 @@ func processFile(path string, opts Options, cfg RuntimeConfig) fileResult {
 			"status":         "ok",
 			"encoding":       decoded.Encoding,
 			"file_size":      len(data),
+			"hash":           textutil.HashSHA256(data),
 			"line_ending":    metrics.LineEnding,
 			"language_guess": metrics.Language,
 			"chars":          metrics.Chars,
 			"lines":          metrics.Lines,
 			"max_line_width": metrics.MaxLineWidth,
-		}
-		if opts.WithHash == "sha256" {
-			ev["hash"] = textutil.HashSHA256(data)
 		}
 		fr.Events = append(fr.Events, ev)
 		fr.Processed = true

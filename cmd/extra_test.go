@@ -29,29 +29,6 @@ func TestParseSize(t *testing.T) {
 	}
 }
 
-func TestNormalizeArgsMoreCases(t *testing.T) {
-	cases := []struct {
-		in  []string
-		out []string
-	}{
-		{[]string{"stats", "a"}, []string{"stats", "a"}},
-		{[]string{"check", "a"}, []string{"check", "a"}},
-		{[]string{"-v"}, []string{"-v"}},
-		{[]string{"version"}, []string{"version"}},
-	}
-	for _, c := range cases {
-		got := normalizeArgs(c.in)
-		if len(got) != len(c.out) {
-			t.Fatalf("len mismatch in=%v got=%v", c.in, got)
-		}
-		for i := range got {
-			if got[i] != c.out[i] {
-				t.Fatalf("normalize mismatch in=%v got=%v want=%v", c.in, got, c.out)
-			}
-		}
-	}
-}
-
 func TestExecuteExitCodes(t *testing.T) {
 	oldArgs := os.Args
 	defer func() { os.Args = oldArgs }()

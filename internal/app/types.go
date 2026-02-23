@@ -18,7 +18,6 @@ type Options struct {
 	Jobs             int
 	FollowSymlinks   bool
 	MaxFileSizeBytes int64
-	WithHash         string
 	Version          string
 	Args             []string
 }

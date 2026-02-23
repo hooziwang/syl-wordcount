@@ -33,6 +33,9 @@ func TestCollectAndIgnore(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(tmp, "ok.txt"), []byte("ok"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(tmp, ".DS_Store"), []byte("meta"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(tmp, "ignored.txt"), []byte("no"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -63,12 +66,24 @@ func TestCollectAndIgnore(t *testing.T) {
 		if base == "ok.txt" {
 			hasOK = true
 		}
-		if base == "ignored.txt" || base == "x.txt" || base == "a.log" {
+		if base == ".DS_Store" || base == "ignored.txt" || base == "x.txt" || base == "a.log" {
 			t.Fatalf("ignored file should not be present: %#v", res.Files)
 		}
 	}
 	if !hasOK {
 		t.Fatalf("ok.txt should be present: %#v", res.Files)
+	}
+}
+
+func TestCollectDirectDSStore(t *testing.T) {
+	tmp := t.TempDir()
+	ds := filepath.Join(tmp, ".DS_Store")
+	if err := os.WriteFile(ds, []byte("meta"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res := Collect(Options{Paths: []string{ds}, CWD: tmp})
+	if len(res.Files) != 0 {
+		t.Fatalf(".DS_Store should be ignored even when passed directly: %#v", res.Files)
 	}
 }
 

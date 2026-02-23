@@ -28,16 +28,10 @@ make
 
 ## 核心命令
 
-### 1) 默认统计模式（stats）
+### 1) 默认统计模式
 
 ```bash
 syl-wordcount <path1> <path2> ...
-```
-
-等价于：
-
-```bash
-syl-wordcount stats <path1> <path2> ...
 ```
 
 ### 2) 规则校验模式（check）
@@ -45,6 +39,13 @@ syl-wordcount stats <path1> <path2> ...
 ```bash
 syl-wordcount check <path1> <path2> ... --config ./rules.yaml
 ```
+
+注意：
+
+- `syl-wordcount stats ...` 已移除，不再支持。
+- 统计请直接用裸命令：`syl-wordcount <paths...>`。
+- `check` 可两种方式提供规则：`--config` 文件，或 `SYL_WC_*` 环境变量。
+- `check` 默认只输出 `violation/error`（加 `--all` 才输出 `pass`）。
 
 ## 快速上手示例
 
@@ -72,10 +73,10 @@ syl-wordcount ./docs ./README.md ./notes/todo.txt
 syl-wordcount ./docs --format json
 ```
 
-### 示例 5：附加 SHA256（仅统计模式）
+### 示例 5：统计模式默认包含 SHA256
 
 ```bash
-syl-wordcount ./docs --with-hash sha256
+syl-wordcount ./docs
 ```
 
 ### 示例 6：设置并发
@@ -108,14 +109,43 @@ syl-wordcount check ./docs --config ./examples/config.example.yaml
 syl-wordcount check ./docs ./notes ./README.md --config ./rules.yaml
 ```
 
+### 示例 10.1：check 全量输出（包含 pass）
+
+```bash
+syl-wordcount check ./docs --config ./rules.yaml --all
+```
+
+### 示例 11：输入路径不存在（看 error 事件 + 退出码）
+
+```bash
+syl-wordcount /no/such/path > /tmp/swc-missing.ndjson; echo $?
+rg '"type":"error"' /tmp/swc-missing.ndjson
+tail -n 1 /tmp/swc-missing.ndjson
+```
+
+### 示例 12：二进制文件会被跳过
+
+```bash
+syl-wordcount ./some-image.png > /tmp/swc-binary.ndjson; echo $?
+rg 'skipped_binary_file' /tmp/swc-binary.ndjson
+```
+
+### 示例 13：超大文件会被跳过
+
+```bash
+syl-wordcount ./docs --max-file-size 1KB > /tmp/swc-large.ndjson; echo $?
+rg 'skipped_large_file' /tmp/swc-large.ndjson
+```
+
 ## 参数说明（常用）
 
 - `--format ndjson|json`：输出格式，默认 `ndjson`
 - `--jobs N`：并发任务数，默认 `min(8, CPU核数)`
 - `--follow-symlinks`：是否跟随软链接（默认不跟随）
 - `--max-file-size 10MB`：单文件处理上限（超限会跳过并输出 error 事件）
-- `--with-hash sha256`：统计模式附带文件哈希
-- `--config /path/rules.yaml`：规则配置文件（`check` 必填）
+- 统计模式默认附带 `hash`（sha256），无需额外参数
+- `--config /path/rules.yaml`：规则配置文件（`check` 可选；不传时尝试读取 `SYL_WC_*`）
+- `--all`：仅 `check` 模式有效，输出全量事件（包含 `pass`）
 - `-v, --version`：输出版本
 
 ## 输出格式与事件模型
@@ -133,7 +163,7 @@ syl-wordcount check ./docs ./notes ./README.md --config ./rules.yaml
 
 ```json
 {"type":"meta","tool":"syl-wordcount","mode":"stats","output_format":"ndjson"}
-{"type":"file_stats","path":"/abs/path/a.txt","chars":120,"lines":8,"max_line_width":42,"encoding":"utf-8","line_ending":"lf","language_guess":"en","file_size":512}
+{"type":"file_stats","path":"/abs/path/a.txt","chars":120,"lines":8,"max_line_width":42,"encoding":"utf-8","line_ending":"lf","language_guess":"en","file_size":512,"hash":"<sha256>"}
 {"type":"summary","total_files":1,"processed_files":1,"skipped_files":0,"violation_count":0,"error_count":0,"exit_code":0}
 ```
 
@@ -194,12 +224,44 @@ rules:
       case_sensitive: true
 ```
 
+### 规则说明（逐项）
+
+| 规则键 | 含义 | 典型用途 | 对应环境变量 |
+|---|---|---|---|
+| `min_chars` | 文件最少字符数（rune） | 防止内容过短 | `SYL_WC_MIN_CHARS` |
+| `max_chars` | 文件最多字符数（rune） | 控制文档篇幅 | `SYL_WC_MAX_CHARS` |
+| `min_lines` | 文件最少行数（包含空行） | 防止空内容/过少内容 | `SYL_WC_MIN_LINES` |
+| `max_lines` | 文件最多行数（包含空行） | 限制过长文档 | `SYL_WC_MAX_LINES` |
+| `max_line_width` | 单行显示宽度上限 | 控制可读性、避免超宽行 | `SYL_WC_MAX_LINE_WIDTH` |
+| `avg_line_width` | 平均行宽上限 | 控制整体排版密度 | `SYL_WC_AVG_LINE_WIDTH` |
+| `max_file_size` | 文件体积上限（`KB/MB/GB`） | 限制超大文件 | `SYL_WC_MAX_FILE_SIZE` |
+| `no_trailing_spaces` | 禁止行尾空白 | 保持文本整洁，减少 diff 噪音 | `SYL_WC_NO_TRAILING_SPACES` |
+| `no_tabs` | 禁止制表符 `\\t` | 统一缩进策略 | `SYL_WC_NO_TABS` |
+| `no_fullwidth_space` | 禁止全角空格 `U+3000` | 避免隐蔽排版问题 | `SYL_WC_NO_FULLWIDTH_SPACE` |
+| `max_consecutive_blank_lines` | 连续空行上限 | 防止文档稀疏、断裂 | `SYL_WC_MAX_CONSECUTIVE_BLANK_LINES` |
+| `allowed_extensions` | 允许检查的扩展名白名单 | 只检查目标文件类型 | `SYL_WC_ALLOWED_EXTENSIONS`（逗号分隔） |
+| `ignore_patterns` | 额外忽略路径模式（glob） | 排除缓存/产物目录 | `SYL_WC_IGNORE_PATTERNS`（逗号分隔） |
+| `forbidden_patterns` | 禁止出现的正则模式列表 | 拦截敏感词/占位词 | `SYL_WC_FORBIDDEN_PATTERNS`（大小写敏感）/`SYL_WC_FORBIDDEN_PATTERNS_I`（不敏感） |
+| `required_patterns` | 必须出现的正则模式列表 | 强制必须声明/关键字段 | `SYL_WC_REQUIRED_PATTERNS`（大小写敏感）/`SYL_WC_REQUIRED_PATTERNS_I`（不敏感） |
+
+补充说明：
+
+- `forbidden_patterns` 命中一次就记一次违规（不会只报第一条）。
+- `required_patterns` 是“全部必须命中”（AND 关系），缺一条就报一条。
+- 正则引擎是 Go 原生 `regexp`（RE2 语义）。
+- `ignore_patterns` 使用 glob 语法（例如 `**/*.log`、`**/dist/**`）。
+
 ### 配置中的环境变量
 
 支持两种：
 
 - `${VAR}`
 - `${VAR:-default}`
+
+说明：
+
+- YAML 负责定义规则结构；环境变量负责在运行时注入阈值，这样不用改文件就能切换标准。
+- 也可以完全不传 `--config`，直接使用 `SYL_WC_*` 作为规则来源。
 
 示例：
 
@@ -219,6 +281,29 @@ export MAX_LINES=120 MAX_WIDTH=88 BAN_WORD=TODO
 syl-wordcount check ./docs --config ./rules.yaml
 ```
 
+纯环境变量规则（不传 `--config`）示例：
+
+```bash
+SYL_WC_MAX_LINE_WIDTH=110 \
+SYL_WC_MAX_CHARS=8000 \
+SYL_WC_NO_TABS=true \
+SYL_WC_FORBIDDEN_PATTERNS=TODO,password \
+syl-wordcount check /Users/wxy/Downloads/SPI
+```
+
+可用的环境变量前缀：`SYL_WC_*`。常用键：
+
+- `SYL_WC_MIN_CHARS`, `SYL_WC_MAX_CHARS`
+- `SYL_WC_MIN_LINES`, `SYL_WC_MAX_LINES`
+- `SYL_WC_MAX_LINE_WIDTH`, `SYL_WC_AVG_LINE_WIDTH`
+- `SYL_WC_MAX_FILE_SIZE`
+- `SYL_WC_NO_TRAILING_SPACES`, `SYL_WC_NO_TABS`, `SYL_WC_NO_FULLWIDTH_SPACE`
+- `SYL_WC_MAX_CONSECUTIVE_BLANK_LINES`
+- `SYL_WC_ALLOWED_EXTENSIONS`（逗号分隔）
+- `SYL_WC_IGNORE_PATTERNS`（逗号分隔）
+- `SYL_WC_FORBIDDEN_PATTERNS`, `SYL_WC_FORBIDDEN_PATTERNS_I`（逗号分隔）
+- `SYL_WC_REQUIRED_PATTERNS`, `SYL_WC_REQUIRED_PATTERNS_I`（逗号分隔）
+
 ## 退出码
 
 - `0`：全部合格
@@ -227,6 +312,11 @@ syl-wordcount check ./docs --config ./rules.yaml
 - `3`：输入错误（路径/读取/解码/跳过等）
 - `4`：配置错误
 - `5`：内部错误
+
+建议：
+
+- 在自动化里优先使用进程退出码（`$?` / `%ERRORLEVEL%`）作为最终判定。
+- `summary.exit_code` 会与该进程退出码保持一致，便于纯 JSON 流水线读取。
 
 ## Shell/CI 典型用法
 
@@ -254,7 +344,23 @@ syl-wordcount ./docs --format json > stats.json
 syl-wordcount ./docs | rg '"type":"summary"'
 ```
 
-### 5) GitHub Actions 例子
+### 5) 只提取违规明细
+
+```bash
+syl-wordcount check ./docs --config ./rules.yaml > result.ndjson || true
+rg '"type":"violation"' result.ndjson
+```
+
+### 6) 按 rule_id 聚合（快速看最常见问题）
+
+```bash
+syl-wordcount check ./docs --config ./rules.yaml > result.ndjson || true
+rg '"type":"summary"' result.ndjson
+```
+
+`summary.rule_stats` 会给出每条规则的 `violations/files` 统计。
+
+### 7) GitHub Actions 例子
 
 ```yaml
 name: text-quality
@@ -275,10 +381,12 @@ jobs:
 - 自动识别文本/二进制
 - 编码：UTF-8 优先，失败尝试 GBK/GB18030
 - 字符数按 `rune`
+- 行数 `lines` 包含空行；空文件为 `0` 行；末尾换行不会额外多算一行
 - 最大行宽按显示宽度（CJK 宽字符）
+- 列号 `column` 为 `rune` 列号（从 1 开始）
 - tab 宽度按 4，按 tab stop 计算
 - 默认启用 `.gitignore`，并内置忽略目录：`.git`、`.svn`、`node_modules`、`vendor`、`dist`、`build`
-- check 模式必须传 `--config`
+- check 模式必须有规则来源：`--config` 或 `SYL_WC_*` 环境变量（两者都没有会直接报错）
 
 ## 发布
 

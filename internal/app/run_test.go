@@ -33,19 +33,18 @@ func TestDefaultJobs(t *testing.T) {
 	}
 }
 
-func TestRunStatsAndHash(t *testing.T) {
+func TestRunStatsIncludesHash(t *testing.T) {
 	tmp := t.TempDir()
 	f := filepath.Join(tmp, "a.txt")
 	if err := os.WriteFile(f, []byte("hello\nworld\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	res, err := Run(Options{
-		Mode:     ModeStats,
-		Paths:    []string{f},
-		CWD:      tmp,
-		Format:   "ndjson",
-		WithHash: "sha256",
-		Version:  "test",
+		Mode:    ModeStats,
+		Paths:   []string{f},
+		CWD:     tmp,
+		Format:  "ndjson",
+		Version: "test",
 	})
 	if err != nil {
 		t.Fatalf("run stats failed: %v", err)
@@ -137,9 +136,52 @@ func TestRunInputErrorsAndSkips(t *testing.T) {
 	if countEvent(res.Events, "error") == 0 {
 		t.Fatalf("expected error events")
 	}
+	sm := findEvent(res.Events, "summary")
+	if sm == nil {
+		t.Fatalf("missing summary")
+	}
+	if sm["exit_code"].(int) != 3 {
+		t.Fatalf("expected summary exit_code 3, got %#v", sm)
+	}
+	if sm["error_count"].(int) < 1 {
+		t.Fatalf("expected error_count >= 1, got %#v", sm)
+	}
+}
+
+func TestRunNoFilesButHasInputErrorSummary(t *testing.T) {
+	tmp := t.TempDir()
+	missing := filepath.Join(tmp, "missing.txt")
+	res, err := Run(Options{
+		Mode:    ModeStats,
+		Paths:   []string{missing},
+		CWD:     tmp,
+		Format:  "ndjson",
+		Version: "test",
+	})
+	if err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	sm := findEvent(res.Events, "summary")
+	if sm == nil {
+		t.Fatalf("missing summary")
+	}
+	if sm["total_files"].(int) != 0 {
+		t.Fatalf("expected total_files=0, got %#v", sm)
+	}
+	if sm["exit_code"].(int) != 3 {
+		t.Fatalf("expected summary exit_code 3, got %#v", sm)
+	}
+	if sm["error_count"].(int) < 1 {
+		t.Fatalf("expected error_count >= 1, got %#v", sm)
+	}
 }
 
 func TestRunConfigErrors(t *testing.T) {
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "SYL_WC_") {
+			t.Skip("当前环境已存在 SYL_WC_* 变量，跳过无规则来源场景测试")
+		}
+	}
 	tmp := t.TempDir()
 	_, err := Run(Options{Mode: ModeCheck, Paths: []string{tmp}, CWD: tmp})
 	if err == nil {

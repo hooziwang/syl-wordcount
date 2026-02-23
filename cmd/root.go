@@ -20,7 +20,7 @@ type commonFlags struct {
 	Jobs           int
 	FollowSymlinks bool
 	MaxFileSize    string
-	WithHash       string
+	CheckAll       bool
 	ShowVersion    bool
 }
 
@@ -53,23 +53,27 @@ func NewRootCmd(stdout, _ io.Writer) *cobra.Command {
 				printVersion(stdout)
 				return nil
 			}
-			_ = cmd.Help()
-			return &ExitError{Code: ExitArg, Msg: "还没传输入路径，至少要给一个文件或目录"}
+			if len(args) == 0 {
+				_ = cmd.Help()
+				return &ExitError{Code: ExitArg, Msg: "还没传输入路径，至少要给一个文件或目录"}
+			}
+			return runMode(stdout, flags, app.ModeStats, args)
 		},
 	}
 	root.CompletionOptions.HiddenDefaultCmd = true
 	bindCommon(root, flags)
 
-	statsCmd := &cobra.Command{
-		Use:           "stats [paths...]",
-		Short:         "统计文本文件字符数/行数/最大行宽",
+	internalStatsCmd := &cobra.Command{
+		Use:           "__stats [paths...]",
+		Short:         "internal stats entry",
+		Hidden:        true,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runMode(stdout, flags, app.ModeStats, args)
 		},
 	}
-	root.AddCommand(statsCmd)
+	root.AddCommand(internalStatsCmd)
 
 	checkCmd := &cobra.Command{
 		Use:           "check [paths...]",
@@ -84,6 +88,7 @@ func NewRootCmd(stdout, _ io.Writer) *cobra.Command {
 			return runMode(stdout, flags, app.ModeCheck, args)
 		},
 	}
+	checkCmd.Flags().BoolVar(&flags.CheckAll, "all", false, "输出全量结果（包含 pass 事件）")
 	root.AddCommand(checkCmd)
 
 	versionCmd := &cobra.Command{
@@ -98,12 +103,11 @@ func NewRootCmd(stdout, _ io.Writer) *cobra.Command {
 }
 
 func bindCommon(cmd *cobra.Command, flags *commonFlags) {
-	cmd.PersistentFlags().StringVar(&flags.Config, "config", "", "YAML 规则配置文件路径（check 模式必填）")
+	cmd.PersistentFlags().StringVar(&flags.Config, "config", "", "YAML 规则配置文件路径（check 模式可选，未传则尝试读取环境变量规则）")
 	cmd.PersistentFlags().StringVar(&flags.Format, "format", "ndjson", "输出格式：ndjson/json")
 	cmd.PersistentFlags().IntVar(&flags.Jobs, "jobs", app.DefaultJobs(), "并发任务数（默认 min(8, CPU核数)）")
 	cmd.PersistentFlags().BoolVar(&flags.FollowSymlinks, "follow-symlinks", false, "是否跟随软链接")
 	cmd.PersistentFlags().StringVar(&flags.MaxFileSize, "max-file-size", "10MB", "单文件最大处理大小，超出则跳过（如 10MB）")
-	cmd.PersistentFlags().StringVar(&flags.WithHash, "with-hash", "", "可选哈希算法：sha256")
 	cmd.PersistentFlags().BoolVarP(&flags.ShowVersion, "version", "v", false, "显示版本信息")
 }
 
@@ -111,14 +115,8 @@ func runMode(stdout io.Writer, flags *commonFlags, mode app.Mode, args []string)
 	if len(args) == 0 {
 		return &ExitError{Code: ExitArg, Msg: "还没传输入路径，至少要给一个文件或目录"}
 	}
-	if mode == app.ModeCheck && strings.TrimSpace(flags.Config) == "" {
-		return &ExitError{Code: ExitArg, Msg: "check 模式必须传 --config"}
-	}
 	if err := scan.ValidateFormat(flags.Format); err != nil {
 		return &ExitError{Code: ExitArg, Msg: err.Error()}
-	}
-	if flags.WithHash != "" && flags.WithHash != "sha256" {
-		return &ExitError{Code: ExitArg, Msg: "--with-hash 仅支持 sha256"}
 	}
 	maxBytes, err := parseSize(flags.MaxFileSize)
 	if err != nil {
@@ -141,7 +139,6 @@ func runMode(stdout io.Writer, flags *commonFlags, mode app.Mode, args []string)
 		Jobs:             flags.Jobs,
 		FollowSymlinks:   flags.FollowSymlinks,
 		MaxFileSizeBytes: maxBytes,
-		WithHash:         flags.WithHash,
 		Version:          Version,
 		Args:             os.Args[1:],
 	})
@@ -155,7 +152,8 @@ func runMode(stdout io.Writer, flags *commonFlags, mode app.Mode, args []string)
 			return &ExitError{Code: ExitInternal, Msg: err.Error()}
 		}
 	}
-	if werr := output.Write(stdout, flags.Format, res.Events); werr != nil {
+	events := eventsForOutput(mode, flags.CheckAll, res.Events)
+	if werr := output.Write(stdout, flags.Format, events); werr != nil {
 		return &ExitError{Code: ExitInternal, Msg: fmt.Sprintf("输出结果失败：%v", werr)}
 	}
 	code := 0
@@ -172,6 +170,21 @@ func runMode(stdout io.Writer, flags *commonFlags, mode app.Mode, args []string)
 		return &ExitError{Code: code}
 	}
 	return nil
+}
+
+func eventsForOutput(mode app.Mode, checkAll bool, events []map[string]any) []map[string]any {
+	if mode != app.ModeCheck || checkAll {
+		return events
+	}
+	filtered := make([]map[string]any, 0, len(events))
+	for _, e := range events {
+		t, _ := e["type"].(string)
+		if t == "pass" {
+			continue
+		}
+		filtered = append(filtered, e)
+	}
+	return filtered
 }
 
 func parseSize(s string) (int64, error) {
@@ -211,11 +224,11 @@ func normalizeArgs(args []string) []string {
 	}
 	first := args[0]
 	switch first {
-	case "stats", "check", "version", "help", "completion":
+	case "stats", "check", "version", "help", "completion", "__stats":
 		return args
 	}
 	if strings.HasPrefix(first, "-") {
 		return args
 	}
-	return append([]string{"stats"}, args...)
+	return append([]string{"__stats"}, args...)
 }

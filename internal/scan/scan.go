@@ -20,6 +20,10 @@ var defaultIgnoreDirs = map[string]struct{}{
 	"build":        {},
 }
 
+var defaultIgnoreFiles = map[string]struct{}{
+	".DS_Store": {},
+}
+
 type Options struct {
 	Paths          []string
 	CWD            string
@@ -71,6 +75,9 @@ func Collect(opts Options) ScanResult {
 			walkDir(abs, opts, matchers, m, &errs)
 			continue
 		}
+		if _, ok := defaultIgnoreFiles[filepath.Base(abs)]; ok {
+			continue
+		}
 		if isIgnored(abs, false, opts, matchers) {
 			continue
 		}
@@ -102,6 +109,9 @@ func walkDir(root string, opts Options, matchers []GitIgnoreMatcher, out map[str
 			return nil
 		}
 		if d.Type()&os.ModeSymlink != 0 && !opts.FollowSymlinks {
+			return nil
+		}
+		if _, ok := defaultIgnoreFiles[name]; ok {
 			return nil
 		}
 		if isIgnored(path, false, opts, matchers) {
