@@ -319,6 +319,45 @@ SYL_WC_FORBIDDEN_PATTERNS=TODO,password \
 syl-wordcount check /Users/wxy/Downloads/SPI
 ```
 
+更多纯环境变量示例：
+
+```bash
+# 1) 仅限制字符上限
+SYL_WC_MAX_CHARS=2000 syl-wordcount check /Users/wxy/Downloads/SPI
+```
+
+```bash
+# 2) 排版规则组合
+SYL_WC_MAX_LINE_WIDTH=100 \
+SYL_WC_NO_TABS=true \
+SYL_WC_NO_TRAILING_SPACES=true \
+SYL_WC_MAX_CONSECUTIVE_BLANK_LINES=2 \
+syl-wordcount check /Users/wxy/Downloads/SPI
+```
+
+```bash
+# 3) 大小写敏感/不敏感的正则
+SYL_WC_FORBIDDEN_PATTERNS=TODO,password \
+SYL_WC_REQUIRED_PATTERNS=版权,免责声明 \
+syl-wordcount check /Users/wxy/Downloads/SPI
+
+SYL_WC_FORBIDDEN_PATTERNS_I=todo,password \
+SYL_WC_REQUIRED_PATTERNS_I=copyright \
+syl-wordcount check /Users/wxy/Downloads/SPI
+```
+
+```bash
+# 4) 扩展名白名单 + 忽略路径
+SYL_WC_ALLOWED_EXTENSIONS=.md,.txt \
+SYL_WC_IGNORE_PATTERNS='**/.git/**,**/node_modules/**,**/*.png' \
+syl-wordcount check /Users/wxy/Downloads/SPI
+```
+
+```bash
+# 5) check 全量输出（包含 pass）
+SYL_WC_MAX_CHARS=2000 syl-wordcount check /Users/wxy/Downloads/SPI --all
+```
+
 可用的环境变量前缀：`SYL_WC_*`。常用键：
 
 - `SYL_WC_MIN_CHARS`, `SYL_WC_MAX_CHARS`
