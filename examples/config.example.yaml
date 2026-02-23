@@ -28,3 +28,8 @@ rules:
   required_patterns:
     - pattern: "版权"
       case_sensitive: true
+
+  section_rules:
+    - heading_contains: "xxx"
+      rules:
+        max_chars: 200

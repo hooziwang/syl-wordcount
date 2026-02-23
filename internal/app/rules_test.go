@@ -327,6 +327,241 @@ func TestEvaluateRulesCombinations(t *testing.T) {
 	})
 }
 
+func TestEvaluateRulesSectionRules(t *testing.T) {
+	text := "# 总览\na\tb\n\n## xxx-章节A\n123456\n### 子节\n123\n\n## yyy-章节B\n123456789012\n"
+	t.Run("global_and_section_rules_together", func(t *testing.T) {
+		vs, errs := EvaluateRules(newFC("/tmp/a.md", text), config.Rules{
+			NoTabs: true, // 全局规则
+			SectionRules: []config.SectionRule{
+				{
+					HeadingContains: "xxx",
+					Rules: config.SectionScopedRules{
+						MaxChars: ip(5),
+					},
+				},
+			},
+		})
+		if len(errs) != 0 {
+			t.Fatalf("unexpected errs: %v", errs)
+		}
+		hasFileTab := false
+		hasSectionMax := false
+		for _, v := range vs {
+			if v.RuleID == "no_tabs" && v.Scope == "file" && v.Line == 2 {
+				hasFileTab = true
+			}
+			if v.RuleID == "max_chars" && v.Scope == "section" && v.Line == 4 {
+				hasSectionMax = true
+			}
+		}
+		if !hasFileTab || !hasSectionMax {
+			t.Fatalf("expected both global and section violations, got: %+v", vs)
+		}
+	})
+
+	t.Run("multiple_section_rules_with_different_thresholds", func(t *testing.T) {
+		vs, errs := EvaluateRules(newFC("/tmp/a.md", text), config.Rules{
+			SectionRules: []config.SectionRule{
+				{
+					HeadingContains: "xxx",
+					Rules: config.SectionScopedRules{
+						MaxChars: ip(5),
+					},
+				},
+				{
+					HeadingContains: "yyy",
+					Rules: config.SectionScopedRules{
+						MaxChars: ip(20),
+					},
+				},
+			},
+		})
+		if len(errs) != 0 {
+			t.Fatalf("unexpected errs: %v", errs)
+		}
+		if countRule(vs, "max_chars") != 1 {
+			t.Fatalf("expected one section max_chars violation, got: %+v", vs)
+		}
+		v, _ := firstRule(vs, "max_chars")
+		if v.Scope != "section" || v.Line != 4 {
+			t.Fatalf("unexpected section max_chars violation: %+v", v)
+		}
+	})
+
+	t.Run("no_match_no_violation", func(t *testing.T) {
+		vs, errs := EvaluateRules(newFC("/tmp/a.md", text), config.Rules{
+			SectionRules: []config.SectionRule{
+				{
+					HeadingContains: "not-exists",
+					Rules: config.SectionScopedRules{
+						MaxChars: ip(1),
+					},
+				},
+			},
+		})
+		if len(errs) != 0 {
+			t.Fatalf("unexpected errs: %v", errs)
+		}
+		if hasRule(vs, "max_chars") {
+			t.Fatalf("unexpected section violation: %+v", vs)
+		}
+	})
+
+	t.Run("invalid_section_rule", func(t *testing.T) {
+		vs, errs := EvaluateRules(newFC("/tmp/a.md", text), config.Rules{
+			SectionRules: []config.SectionRule{
+				{HeadingContains: "", Rules: config.SectionScopedRules{MaxChars: ip(10)}},
+				{HeadingContains: "xxx"},
+			},
+		})
+		if len(vs) != 0 {
+			t.Fatalf("invalid section rules should not produce violations: %+v", vs)
+		}
+		if len(errs) != 2 {
+			t.Fatalf("expected two section rule errors, got %d: %v", len(errs), errs)
+		}
+	})
+
+	t.Run("line_rules_are_scoped_to_section_content", func(t *testing.T) {
+		content := "# 其他\na\tb\n\n## xxx命中\nx\tz\n"
+		vs, errs := EvaluateRules(newFC("/tmp/a.md", content), config.Rules{
+			SectionRules: []config.SectionRule{
+				{
+					HeadingContains: "xxx",
+					Rules: config.SectionScopedRules{
+						NoTabs: true,
+					},
+				},
+			},
+		})
+		if len(errs) != 0 {
+			t.Fatalf("unexpected errs: %v", errs)
+		}
+		if countRule(vs, "no_tabs") != 1 {
+			t.Fatalf("expected exactly one no_tabs violation in matched section, got: %+v", vs)
+		}
+		v, _ := firstRule(vs, "no_tabs")
+		if v.Scope != "section" || v.Line != 5 {
+			t.Fatalf("unexpected scoped line violation: %+v", v)
+		}
+	})
+
+	t.Run("overlapped_section_rules_accumulate", func(t *testing.T) {
+		content := "# xxx\n1234567890\n"
+		vs, errs := EvaluateRules(newFC("/tmp/a.md", content), config.Rules{
+			SectionRules: []config.SectionRule{
+				{
+					HeadingContains: "xxx",
+					Rules: config.SectionScopedRules{
+						MaxChars: ip(5),
+					},
+				},
+				{
+					HeadingContains: "xxx",
+					Rules: config.SectionScopedRules{
+						MaxLines: ip(0),
+					},
+				},
+			},
+		})
+		if len(errs) != 0 {
+			t.Fatalf("unexpected errs: %v", errs)
+		}
+		if !hasRule(vs, "max_chars") || !hasRule(vs, "max_lines") {
+			t.Fatalf("expected overlapped section rules to accumulate, got: %+v", vs)
+		}
+	})
+
+	t.Run("global_and_section_same_rule_id_do_not_override", func(t *testing.T) {
+		content := "# xxx\n123456\n"
+		vs, errs := EvaluateRules(newFC("/tmp/a.md", content), config.Rules{
+			MaxChars: ip(5), // 全局触发
+			SectionRules: []config.SectionRule{
+				{
+					HeadingContains: "xxx",
+					Rules: config.SectionScopedRules{
+						MaxChars: ip(100), // 章节不触发
+					},
+				},
+			},
+		})
+		if len(errs) != 0 {
+			t.Fatalf("unexpected errs: %v", errs)
+		}
+		if countRule(vs, "max_chars") != 1 {
+			t.Fatalf("expected only one max_chars violation, got: %+v", vs)
+		}
+		v, _ := firstRule(vs, "max_chars")
+		if v.Scope != "file" {
+			t.Fatalf("expected global max_chars file-scope violation, got: %+v", v)
+		}
+	})
+
+	t.Run("section_pattern_compile_error", func(t *testing.T) {
+		content := "# xxx\nhello\n"
+		vs, errs := EvaluateRules(newFC("/tmp/a.md", content), config.Rules{
+			SectionRules: []config.SectionRule{
+				{
+					HeadingContains: "xxx",
+					Rules: config.SectionScopedRules{
+						ForbiddenPatterns: []config.PatternRule{{Pattern: "("}},
+					},
+				},
+			},
+		})
+		if len(vs) != 0 {
+			t.Fatalf("compile error should not produce violations, got: %+v", vs)
+		}
+		if len(errs) != 1 {
+			t.Fatalf("expected one section regex compile error, got %d: %v", len(errs), errs)
+		}
+	})
+
+	t.Run("nested_heading_boundary", func(t *testing.T) {
+		content := "# A\nkeep\n## A child\nchild\n# B\noutside\n"
+		vs, errs := EvaluateRules(newFC("/tmp/a.md", content), config.Rules{
+			SectionRules: []config.SectionRule{
+				{
+					HeadingContains: "A",
+					Rules: config.SectionScopedRules{
+						ForbiddenPatterns: []config.PatternRule{{Pattern: "outside"}},
+					},
+				},
+			},
+		})
+		if len(errs) != 0 {
+			t.Fatalf("unexpected errs: %v", errs)
+		}
+		if hasRule(vs, "forbidden_pattern") {
+			t.Fatalf("section boundary should exclude next top-level section content, got: %+v", vs)
+		}
+	})
+
+	t.Run("section_required_pattern_position", func(t *testing.T) {
+		content := "# xxx 标题\nabc\n"
+		vs, errs := EvaluateRules(newFC("/tmp/a.md", content), config.Rules{
+			SectionRules: []config.SectionRule{
+				{
+					HeadingContains: "xxx",
+					Rules: config.SectionScopedRules{
+						RequiredPatterns: []config.PatternRule{{Pattern: "MUST", CaseSensitive: bp(true)}},
+					},
+				},
+			},
+		})
+		if len(errs) != 0 {
+			t.Fatalf("unexpected errs: %v", errs)
+		}
+		v, ok := firstRule(vs, "required_pattern")
+		if !ok {
+			t.Fatalf("expected required_pattern violation")
+		}
+		if v.Scope != "section" || v.Line != 1 || v.Column != 1 {
+			t.Fatalf("unexpected section required_pattern position: %+v", v)
+		}
+	})
+}
+
 func TestRuleHelpers(t *testing.T) {
 	rx, err := compileRule(config.PatternRule{Pattern: "abc"})
 	if err != nil || !rx.MatchString("abc") {
@@ -339,5 +574,24 @@ func TestRuleHelpers(t *testing.T) {
 	s := snippetLine("12345678901234567890123456789012345678901234567890123456789012345678901234567890X")
 	if len(s) <= 80 {
 		t.Fatalf("snippet should be truncated: %q", s)
+	}
+
+	secs := collectMarkdownSections([]string{"# A", "x", "## B", "y", "# C"})
+	if len(secs) != 3 {
+		t.Fatalf("expected 3 sections, got %d", len(secs))
+	}
+	if secs[0].Heading != "A" || secs[0].HeadingLine != 1 {
+		t.Fatalf("unexpected first section: %+v", secs[0])
+	}
+	if normalizeHeadingTitle("Title ### ") != "Title" {
+		t.Fatalf("normalizeHeadingTitle failed")
+	}
+	v2 := scopeLevelViolation("/tmp/a.md", evalScope{
+		Scope:     "section",
+		Label:     "xxx",
+		LabelLine: 7,
+	}, "max_chars", "m", 20, 10)
+	if v2.Scope != "section" || v2.Line != 7 || v2.Column != 1 {
+		t.Fatalf("unexpected scopeLevelViolation: %+v", v2)
 	}
 }

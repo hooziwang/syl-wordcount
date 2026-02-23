@@ -31,6 +31,7 @@ func TestLoadRulesFromEnv(t *testing.T) {
 	t.Setenv("SYL_WC_NO_TABS", "true")
 	t.Setenv("SYL_WC_ALLOWED_EXTENSIONS", ".md,.txt")
 	t.Setenv("SYL_WC_FORBIDDEN_PATTERNS", "TODO,password")
+	t.Setenv("SYL_WC_SECTION_RULES", `[{"heading_contains":"xxx","rules":{"max_chars":200}},{"heading_contains":"yyy","rules":{"max_lines":20}}]`)
 	r, ok, err := LoadRulesFromEnv(EnvPrefix)
 	if err != nil {
 		t.Fatalf("load from env failed: %v", err)
@@ -53,6 +54,15 @@ func TestLoadRulesFromEnv(t *testing.T) {
 	if len(r.ForbiddenPatterns) != 2 {
 		t.Fatalf("bad forbidden patterns: %#v", r.ForbiddenPatterns)
 	}
+	if len(r.SectionRules) != 2 {
+		t.Fatalf("bad section rules: %#v", r.SectionRules)
+	}
+	if r.SectionRules[0].HeadingContains != "xxx" {
+		t.Fatalf("bad section heading: %#v", r.SectionRules[0])
+	}
+	if r.SectionRules[0].Rules.MaxChars == nil || *r.SectionRules[0].Rules.MaxChars != 200 {
+		t.Fatalf("bad section max_chars: %#v", r.SectionRules[0].Rules.MaxChars)
+	}
 }
 
 func TestLoadRulesForCheckNoConfigNoEnv(t *testing.T) {
@@ -72,5 +82,13 @@ func TestLoadRulesFromEnvInvalidValue(t *testing.T) {
 	_, _, err := LoadRulesFromEnv("TWC_")
 	if err == nil {
 		t.Fatalf("expected invalid int error")
+	}
+}
+
+func TestLoadRulesFromEnvInvalidSectionRulesJSON(t *testing.T) {
+	t.Setenv("TWC_SECTION_RULES", "[{bad json}]")
+	_, _, err := LoadRulesFromEnv("TWC_")
+	if err == nil {
+		t.Fatalf("expected invalid section rules json error")
 	}
 }

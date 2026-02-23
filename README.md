@@ -244,6 +244,15 @@ rules:
   required_patterns:
     - pattern: "版权"
       case_sensitive: true
+
+  section_rules:
+    - heading_contains: "xxx"
+      rules:
+        max_chars: 200
+    - heading_contains: "yyy"
+      rules:
+        max_chars: 500
+        max_lines: 20
 ```
 
 ### 规则说明（逐项）
@@ -265,6 +274,7 @@ rules:
 | `ignore_patterns` | 额外忽略路径模式（glob） | 排除缓存/产物目录 | `SYL_WC_IGNORE_PATTERNS`（逗号分隔） |
 | `forbidden_patterns` | 禁止出现的正则模式列表 | 拦截敏感词/占位词 | `SYL_WC_FORBIDDEN_PATTERNS`（大小写敏感）/`SYL_WC_FORBIDDEN_PATTERNS_I`（不敏感） |
 | `required_patterns` | 必须出现的正则模式列表 | 强制必须声明/关键字段 | `SYL_WC_REQUIRED_PATTERNS`（大小写敏感）/`SYL_WC_REQUIRED_PATTERNS_I`（不敏感） |
+| `section_rules` | 章节级规则列表（每条可独立规则） | 不同章节使用不同阈值 | `SYL_WC_SECTION_RULES`（JSON 数组） |
 
 补充说明：
 
@@ -272,6 +282,113 @@ rules:
 - `required_patterns` 是“全部必须命中”（AND 关系），缺一条就报一条。
 - 正则引擎是 Go 原生 `regexp`（RE2 语义）。
 - `ignore_patterns` 使用 glob 语法（例如 `**/*.log`、`**/dist/**`）。
+- `section_rules` 当前字段：`heading_contains`（必填）+ `rules`（章节规则子块，至少一条规则）。
+- 运行模式是“全局规则 + 章节规则”并行：全局规则仍按整文件检查，章节规则只在命中章节内检查。
+- `section_rules` 章节边界基于 Markdown 标题（`#` ~ `######`）：从命中的标题行开始，到下一个“同级或更高层级”标题之前；统计时不包含标题行本身。
+- 环境变量模式下，`section_rules` 使用 `SYL_WC_SECTION_RULES` 传 JSON 数组。
+
+章节规则示例（不同章节使用不同规则）：
+
+```yaml
+rules:
+  # 全局规则（整文件）
+  no_trailing_spaces: true
+
+  # 章节规则（仅命中章节）
+  section_rules:
+    - heading_contains: "xxx"
+      rules:
+        max_chars: 200
+    - heading_contains: "yyy"
+      rules:
+        max_chars: 500
+        max_lines: 20
+```
+
+### 章节规则详细范例
+
+示例 Markdown（`/path/to/doc.md`）：
+
+```md
+# 总览
+这里是总览正文（全局规则会检查这里）。
+
+## xxx-产品说明
+这一段可能比较长，专门给 section_rules 做更严格限制。
+
+## yyy-FAQ
+这是另一个章节，通常允许更宽松的字数和行数。
+```
+
+范例 1：只约束 `xxx` 章节，最多 200 字
+
+```yaml
+rules:
+  section_rules:
+    - heading_contains: "xxx"
+      rules:
+        max_chars: 200
+```
+
+范例 2：`xxx` 和 `yyy` 使用不同阈值
+
+```yaml
+rules:
+  section_rules:
+    - heading_contains: "xxx"
+      rules:
+        max_chars: 200
+        max_lines: 12
+    - heading_contains: "yyy"
+      rules:
+        max_chars: 600
+        max_lines: 40
+```
+
+范例 3：全局规则 + 章节规则同时生效
+
+```yaml
+rules:
+  # 全局：全文件都检查
+  no_tabs: true
+  no_trailing_spaces: true
+
+  # 章节：仅命中标题的章节检查
+  section_rules:
+    - heading_contains: "xxx"
+      rules:
+        max_chars: 200
+```
+
+范例 4：章节内做正则规则
+
+```yaml
+rules:
+  section_rules:
+    - heading_contains: "xxx"
+      rules:
+        forbidden_patterns:
+          - pattern: "TODO"
+            case_sensitive: true
+        required_patterns:
+          - pattern: "注意事项"
+            case_sensitive: true
+```
+
+执行命令：
+
+```bash
+syl-wordcount check /path/to/doc.md --config /path/to/rules.yaml
+```
+
+行为说明：
+
+- 全局规则和章节规则会并行执行，结果会同时出现在输出中。
+- 同一章节如果命中多条 `section_rules`，这些规则会叠加生效。
+- `section_rules` 只匹配标题文本，不匹配正文。
+- 章节范围不包含标题行本身，只统计标题下面的正文内容。
+- 如果 `section_rules` 某项缺少 `heading_contains` 或缺少 `rules`，会报配置错误。
+- `section_rules[].rules` 可使用与全局规则相同的规则键（如 `max_chars`、`max_lines`、`forbidden_patterns` 等）。
 
 ### 配置中的环境变量
 
@@ -352,6 +469,32 @@ syl-wordcount check /path/to/input_dir
 SYL_WC_MAX_CHARS=2000 syl-wordcount check /path/to/input_dir --all
 ```
 
+```bash
+# 6) 章节规则（JSON 数组）
+SYL_WC_SECTION_RULES='[
+  {"heading_contains":"xxx","rules":{"max_chars":200}},
+  {"heading_contains":"yyy","rules":{"max_chars":500,"max_lines":20}}
+]' \
+syl-wordcount check /path/to/input_dir
+```
+
+```bash
+# 7) 全局规则 + 章节规则（都用环境变量）
+SYL_WC_MAX_CHARS=4000 \
+SYL_WC_SECTION_RULES='[
+  {"heading_contains":"xxx","rules":{"max_chars":200}},
+  {"heading_contains":"yyy","rules":{"max_chars":500,"max_lines":20}}
+]' \
+syl-wordcount check /path/to/input_dir
+```
+
+`SYL_WC_SECTION_RULES` 格式说明：
+
+- 必须是 JSON 数组。
+- 每项至少包含：`heading_contains`（字符串）和 `rules`（对象）。
+- `rules` 对象里的键与 YAML 规则键一致。
+- 如果 JSON 非法、字段缺失，`check` 会返回配置错误（退出码 `4`）。
+
 可用的环境变量前缀：`SYL_WC_*`。常用键：
 
 - `SYL_WC_MIN_CHARS`, `SYL_WC_MAX_CHARS`
@@ -364,6 +507,7 @@ SYL_WC_MAX_CHARS=2000 syl-wordcount check /path/to/input_dir --all
 - `SYL_WC_IGNORE_PATTERNS`（逗号分隔）
 - `SYL_WC_FORBIDDEN_PATTERNS`, `SYL_WC_FORBIDDEN_PATTERNS_I`（逗号分隔）
 - `SYL_WC_REQUIRED_PATTERNS`, `SYL_WC_REQUIRED_PATTERNS_I`（逗号分隔）
+- `SYL_WC_SECTION_RULES`（JSON 数组，章节规则）
 
 ## 退出码
 

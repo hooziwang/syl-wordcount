@@ -21,7 +21,7 @@ func TestExpandEnv(t *testing.T) {
 func TestLoadKnownFields(t *testing.T) {
 	tmp := t.TempDir()
 	p := filepath.Join(tmp, "c.yaml")
-	if err := os.WriteFile(p, []byte("rules:\n  max_lines: 10\n"), 0o644); err != nil {
+	if err := os.WriteFile(p, []byte("rules:\n  max_lines: 10\n  section_rules:\n    - heading_contains: \"xxx\"\n      rules:\n        max_chars: 200\n"), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	cfg, err := Load(p)
@@ -30,5 +30,14 @@ func TestLoadKnownFields(t *testing.T) {
 	}
 	if cfg.Rules.MaxLines == nil || *cfg.Rules.MaxLines != 10 {
 		t.Fatalf("unexpected max lines: %#v", cfg.Rules.MaxLines)
+	}
+	if len(cfg.Rules.SectionRules) != 1 {
+		t.Fatalf("unexpected section rules: %#v", cfg.Rules.SectionRules)
+	}
+	if cfg.Rules.SectionRules[0].HeadingContains != "xxx" {
+		t.Fatalf("unexpected heading_contains: %#v", cfg.Rules.SectionRules[0])
+	}
+	if cfg.Rules.SectionRules[0].Rules.MaxChars == nil || *cfg.Rules.SectionRules[0].Rules.MaxChars != 200 {
+		t.Fatalf("unexpected section rules max_chars: %#v", cfg.Rules.SectionRules[0].Rules.MaxChars)
 	}
 }

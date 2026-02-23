@@ -11,8 +11,28 @@ import (
 )
 
 type PatternRule struct {
-	Pattern       string `yaml:"pattern"`
-	CaseSensitive *bool  `yaml:"case_sensitive"`
+	Pattern       string `yaml:"pattern" json:"pattern"`
+	CaseSensitive *bool  `yaml:"case_sensitive" json:"case_sensitive"`
+}
+
+type SectionScopedRules struct {
+	MinChars                 *int          `yaml:"min_chars" json:"min_chars"`
+	MaxChars                 *int          `yaml:"max_chars" json:"max_chars"`
+	MinLines                 *int          `yaml:"min_lines" json:"min_lines"`
+	MaxLines                 *int          `yaml:"max_lines" json:"max_lines"`
+	MaxLineWidth             *int          `yaml:"max_line_width" json:"max_line_width"`
+	AvgLineWidth             *int          `yaml:"avg_line_width" json:"avg_line_width"`
+	NoTrailingSpaces         bool          `yaml:"no_trailing_spaces" json:"no_trailing_spaces"`
+	NoTabs                   bool          `yaml:"no_tabs" json:"no_tabs"`
+	NoFullwidthSpace         bool          `yaml:"no_fullwidth_space" json:"no_fullwidth_space"`
+	MaxConsecutiveBlankLines *int          `yaml:"max_consecutive_blank_lines" json:"max_consecutive_blank_lines"`
+	ForbiddenPatterns        []PatternRule `yaml:"forbidden_patterns" json:"forbidden_patterns"`
+	RequiredPatterns         []PatternRule `yaml:"required_patterns" json:"required_patterns"`
+}
+
+type SectionRule struct {
+	HeadingContains string             `yaml:"heading_contains" json:"heading_contains"`
+	Rules           SectionScopedRules `yaml:"rules" json:"rules"`
 }
 
 type Rules struct {
@@ -31,6 +51,7 @@ type Rules struct {
 	RequiredPatterns         []PatternRule `yaml:"required_patterns"`
 	AllowedExtensions        []string      `yaml:"allowed_extensions"`
 	IgnorePatterns           []string      `yaml:"ignore_patterns"`
+	SectionRules             []SectionRule `yaml:"section_rules"`
 }
 
 type Config struct {

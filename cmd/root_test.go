@@ -197,6 +197,40 @@ func TestCheckAllIncludesPass(t *testing.T) {
 	}
 }
 
+func TestCheckWithEnvSectionRules(t *testing.T) {
+	t.Setenv("SYL_WC_SECTION_RULES", `[{"heading_contains":"xxx","rules":{"max_chars":5}}]`)
+	tmp := t.TempDir()
+	f := filepath.Join(tmp, "a.md")
+	if err := os.WriteFile(f, []byte("# xxx 标题\n123456789\n"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	root := NewRootCmd(stdout, stderr)
+	root.SetArgs([]string{"check", f})
+	err := root.Execute()
+	if err == nil {
+		t.Fatalf("expected violation exit")
+	}
+	ee, ok := err.(*ExitError)
+	if !ok {
+		t.Fatalf("expected ExitError got %T", err)
+	}
+	if ee.Code != ExitViolation {
+		t.Fatalf("unexpected code: %d", ee.Code)
+	}
+	events := parseNDJSON(t, stdout.String())
+	found := false
+	for _, e := range events {
+		if e["type"] == "violation" && e["rule_id"] == "max_chars" && e["scope"] == "section" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected section max_chars violation from env section rules, got: %s", stdout.String())
+	}
+}
+
 func TestNormalizeArgsUsesInternalStats(t *testing.T) {
 	got := normalizeArgs([]string{"/tmp/a.txt"})
 	if len(got) != 2 || got[0] != "__stats" || got[1] != "/tmp/a.txt" {

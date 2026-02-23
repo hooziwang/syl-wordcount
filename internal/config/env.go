@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -30,6 +31,7 @@ func LoadRulesForCheck(configPath string) (Rules, string, error) {
 
 // LoadRulesFromEnv 从环境变量加载规则。
 // 例如：SYL_WC_MAX_LINE_WIDTH=100, SYL_WC_MAX_CHARS=5000
+// 章节规则可通过 SYL_WC_SECTION_RULES 传 JSON 数组。
 func LoadRulesFromEnv(prefix string) (Rules, bool, error) {
 	r := Rules{}
 	has := false
@@ -87,6 +89,24 @@ func LoadRulesFromEnv(prefix string) (Rules, bool, error) {
 			*dst = append(*dst, PatternRule{Pattern: p, CaseSensitive: &cs})
 		}
 	}
+	setSectionRules := func(key string, dst *[]SectionRule) error {
+		v, ok := os.LookupEnv(prefix + key)
+		if !ok {
+			return nil
+		}
+		has = true
+		raw := strings.TrimSpace(v)
+		if raw == "" {
+			*dst = nil
+			return nil
+		}
+		var parsed []SectionRule
+		if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+			return fmt.Errorf("环境变量 %s%s 不是有效 JSON：%w", prefix, key, err)
+		}
+		*dst = parsed
+		return nil
+	}
 
 	if err := setIntPtr("MIN_CHARS", &r.MinChars); err != nil {
 		return Rules{}, false, err
@@ -128,6 +148,9 @@ func LoadRulesFromEnv(prefix string) (Rules, bool, error) {
 	setPatterns("FORBIDDEN_PATTERNS_I", false, &r.ForbiddenPatterns)
 	setPatterns("REQUIRED_PATTERNS", true, &r.RequiredPatterns)
 	setPatterns("REQUIRED_PATTERNS_I", false, &r.RequiredPatterns)
+	if err := setSectionRules("SECTION_RULES", &r.SectionRules); err != nil {
+		return Rules{}, false, err
+	}
 
 	return r, has, nil
 }
