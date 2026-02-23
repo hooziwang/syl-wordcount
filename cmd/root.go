@@ -47,12 +47,13 @@ func Execute() int {
 	return ExitOK
 }
 
-func NewRootCmd(stdout, _ io.Writer) *cobra.Command {
+func NewRootCmd(stdout, stderr io.Writer) *cobra.Command {
 	flags := &commonFlags{}
 	root := &cobra.Command{
 		Use:           "syl-wordcount [paths...]",
 		Short:         "统计文本文件字数/行数/最大行宽，并支持规则校验",
-		Long:          "统计文本文件字数/行数/最大行宽，并支持规则校验。\n\n内部固定逻辑：软链接默认不跟随（不可配置）；check 默认仅输出 violation/error（可用 --all 输出 pass）。",
+		Long:          rootLongHelp(),
+		Example:       rootExampleHelp(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -67,6 +68,8 @@ func NewRootCmd(stdout, _ io.Writer) *cobra.Command {
 			return runMode(stdout, flags, app.ModeStats, args)
 		},
 	}
+	root.SetOut(stdout)
+	root.SetErr(stderr)
 	root.CompletionOptions.HiddenDefaultCmd = true
 	bindCommon(root, flags)
 
@@ -85,7 +88,8 @@ func NewRootCmd(stdout, _ io.Writer) *cobra.Command {
 	checkCmd := &cobra.Command{
 		Use:           "check [paths...]",
 		Short:         "按规则检查文本质量并输出违规定位",
-		Long:          "按规则检查文本质量并输出违规定位。\n\n规则来源：--config 或 SYL_WC_* 环境变量；默认仅输出 violation/error（可用 --all 输出 pass）。",
+		Long:          checkLongHelp(),
+		Example:       checkExampleHelp(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -314,3 +314,43 @@ func TestInputErrorContainsAIHints(t *testing.T) {
 		t.Fatalf("missing recoverable: %#v", errEv)
 	}
 }
+
+func TestHelpContainsRichGuide(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	root := NewRootCmd(stdout, stderr)
+	root.SetArgs([]string{"--help"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected help error: %v", err)
+	}
+	got := stdout.String()
+	if !strings.Contains(got, "两种使用方式（AI 首选）") {
+		t.Fatalf("missing two-usage guide in help: %s", got)
+	}
+	if !strings.Contains(got, "方式 1：统计字数") {
+		t.Fatalf("missing stats usage in help: %s", got)
+	}
+	if !strings.Contains(got, "方式 2：规则校验") {
+		t.Fatalf("missing check usage in help: %s", got)
+	}
+}
+
+func TestCheckHelpContainsRuleMapGuide(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	root := NewRootCmd(stdout, stderr)
+	root.SetArgs([]string{"check", "--help"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected help error: %v", err)
+	}
+	got := stdout.String()
+	if !strings.Contains(got, "规则说明（全部）") {
+		t.Fatalf("missing rules guide in check help: %s", got)
+	}
+	if !strings.Contains(got, "max_consecutive_blank_lines") {
+		t.Fatalf("missing full rule list in check help: %s", got)
+	}
+	if !strings.Contains(got, "section_rules.rules 可用子规则") {
+		t.Fatalf("missing section sub-rule guide in check help: %s", got)
+	}
+}
